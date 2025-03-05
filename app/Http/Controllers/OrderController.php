@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
@@ -75,15 +76,39 @@ class OrderController extends Controller
 
     public function updateOrderStatus(Request $request, $id)
     {
-        $order = Order::find($id);
-        if (!$order) {
-            return response()->json(['message' => 'Order not found'], 404);
-        }
+        return DB::transaction(function () use ($request, $id) {
+            $order = Order::find($id);
+            if (!$order) {
+                return response()->json(['message' => 'Order not found'], 404);
+            }
 
-        $order->update([
-            'status' => $request->status
-        ]);
+            $order->update([
+                'status' => $request->status
+            ]);
 
-        return response()->json(['message' => 'Order updated successfully', 'order' => $order]);
+            if ($request->status === 'completed') {
+                $this->updateDailyReport($order);
+            }
+
+            return response()->json(['message' => 'Order updated successfully', 'order' => $order]);
+        });
+    }
+
+    private function updateDailyReport(Order $order)
+    {
+        $today = Carbon::today();
+
+        $totalCost = $order->orderItems->sum(function ($item) {
+            return $item->product->cost_price * $item->quantity;
+        });
+
+        DB::table('profits_reports')->updateOrInsert(
+            ['report_date' => $today],
+            [
+                'total_revenue' => DB::raw("COALESCE(total_revenue, 0) + {$order->total_price}"),
+                'total_cost' => DB::raw("COALESCE(total_cost, 0) + {$totalCost}"),
+                'total_profit' => DB::raw("COALESCE(total_profit, 0) + ({$order->total_price} - {$totalCost})"),
+            ]
+        );
     }
 }

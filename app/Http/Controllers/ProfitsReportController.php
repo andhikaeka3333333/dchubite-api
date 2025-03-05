@@ -6,17 +6,44 @@ use Illuminate\Http\Request;
 use App\Models\ProfitsReport;
 use App\Models\Order;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class ProfitsReportController extends Controller
 {
+    // public function generateDailyReport()
+    // {
+    //     $today = Carbon::today();
+
+    //     // Hanya menghitung order yang statusnya 'completed'
+    //     $orders = Order::whereDate('order_date', $today)
+    //         ->where('status', 'completed')
+    //         ->get();
+
+    //     $totalRevenue = $orders->sum('total_price');
+    //     $totalCost = $orders->sum(function ($order) {
+    //         return $order->orderItems->sum(function ($item) {
+    //             return $item->product->cost_price * $item->quantity;
+    //         });
+    //     });
+
+    //     $totalProfit = $totalRevenue - $totalCost;
+
+    //     ProfitsReport::updateOrCreate(
+    //         ['report_date' => $today],
+    //         ['total_revenue' => $totalRevenue, 'total_cost' => $totalCost, 'total_profit' => $totalProfit]
+    //     );
+
+    //     return response()->json(['message' => 'Daily report generated successfully']);
+    // }
+
     public function generateDailyReport()
     {
         $today = Carbon::today();
 
         // Hanya menghitung order yang statusnya 'completed'
         $orders = Order::whereDate('order_date', $today)
-                       ->where('status', 'completed')
-                       ->get();
+            ->where('status', 'completed')
+            ->get();
 
         $totalRevenue = $orders->sum('total_price');
         $totalCost = $orders->sum(function ($order) {
@@ -27,13 +54,30 @@ class ProfitsReportController extends Controller
 
         $totalProfit = $totalRevenue - $totalCost;
 
+        // Update atau tambahkan nilai jika sudah ada data hari ini
         ProfitsReport::updateOrCreate(
             ['report_date' => $today],
-            ['total_revenue' => $totalRevenue, 'total_cost' => $totalCost, 'total_profit' => $totalProfit]
+            [
+                'total_revenue' => DB::raw("total_revenue + $totalRevenue"),
+                'total_cost' => DB::raw("total_cost + $totalCost"),
+                'total_profit' => DB::raw("total_profit + $totalProfit")
+            ]
         );
 
         return response()->json(['message' => 'Daily report generated successfully']);
     }
+
+
+
+    public function getWeeklyReport()
+    {
+        $reports = ProfitsReport::where('report_date', '>=', Carbon::today()->subDays(7))
+            ->orderBy('report_date', 'asc')
+            ->get(['report_date', 'total_revenue', 'total_profit']);
+
+        return response()->json($reports);
+    }
+
 
     public function getReport(Request $request)
     {
@@ -59,32 +103,41 @@ class ProfitsReportController extends Controller
         // Ambil nama kategori
         $categoryName = \App\Models\Category::where('id', $categoryId)->value('name');
 
-        // Hanya mengambil order dengan status 'completed'
+        // Ambil semua order yang sudah completed pada tanggal tertentu
         $orders = Order::whereDate('order_date', $date)
             ->where('status', 'completed')
-            ->whereHas('orderItems.product.category', function ($q) use ($categoryId) {
-                $q->where('id', $categoryId);
-            })
             ->with(['orderItems.product'])
             ->get();
 
-        $totalRevenue = $orders->sum('total_price');
-        $totalCost = $orders->sum(function ($order) {
-            return $order->orderItems->sum(function ($item) {
-                return $item->product->cost_price * $item->quantity;
-            });
+        // Filter hanya order item yang berasal dari kategori yang dipilih
+        $filteredOrderItems = collect(); // Koleksi kosong untuk menampung item
+
+        foreach ($orders as $order) {
+            foreach ($order->orderItems as $item) {
+                if ($item->product->category_id == $categoryId) {
+                    $filteredOrderItems->push($item);
+                }
+            }
+        }
+
+        // Hitung total revenue, cost, dan profit hanya dari item yang sesuai kategori
+        $totalRevenue = $filteredOrderItems->sum('subtotal');
+
+        $totalCost = $filteredOrderItems->sum(function ($item) {
+            return $item->product->cost_price * $item->quantity;
         });
+
         $totalProfit = $totalRevenue - $totalCost;
 
         return response()->json([
             'message' => 'Laporan kategori',
             'date' => $date,
             'category_id' => $categoryId,
-            'category_name' => $categoryName, // Menampilkan nama kategori
+            'category_name' => $categoryName,
             'total_revenue' => $totalRevenue,
             'total_cost' => $totalCost,
             'total_profit' => $totalProfit,
-            'data' => $orders
+            'data' => $filteredOrderItems->values(),
         ]);
     }
 }
