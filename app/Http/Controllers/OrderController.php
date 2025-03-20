@@ -61,11 +61,18 @@ class OrderController extends Controller
                 return response()->json(['message' => 'Order is already processed'], 400);
             }
 
+            // Hitung kembalian jika ada
+            $change = $request->amount_paid - $order->total_price;
+            if ($change < 0) {
+                return response()->json(['message' => 'Insufficient payment'], 400);
+            }
+
             // Simpan data pembayaran
             Payment::create([
                 'order_id' => $order->id,
-                'payment_method' => $request->payment_method,
-                'amount_paid' => $order->total_price, // Total price diambil otomatis dari order
+                'method' => $request->payment_method,
+                'amount_paid' => $request->amount_paid,
+                'payment_status' => 'completed',
                 'payment_date' => Carbon::now(),
             ]);
 
@@ -75,7 +82,13 @@ class OrderController extends Controller
             // Update laporan keuntungan harian
             $this->updateDailyReport($order);
 
-            return response()->json(['message' => 'Payment successful', 'order' => $order]);
+            return response()->json([
+                'message' => 'Payment successful',
+                'order' => $order,
+                'amount_paid' => $request->amount_paid,
+                'change' => $change,
+                'receipt' => $this->generateReceipt($order, $request->amount_paid, $change)
+            ]);
         });
     }
 
@@ -97,6 +110,25 @@ class OrderController extends Controller
         );
     }
 
+    private function generateReceipt(Order $order, $amountPaid, $change)
+    {
+        return [
+            'order_code' => $order->order_code,
+            'customer_name' => $order->customer_name,
+            'items' => $order->orderItems->map(function ($item) {
+                return [
+                    'product' => $item->product->name,
+                    'quantity' => $item->quantity,
+                    'price' => $item->price,
+                    'subtotal' => $item->subtotal,
+                ];
+            }),
+            'total_price' => $order->total_price,
+            'amount_paid' => $amountPaid,
+            'change' => $change,
+            'payment_date' => Carbon::now()->toDateTimeString(),
+        ];
+    }
 
     public function getTodayTransactions()
     {
@@ -126,6 +158,11 @@ class OrderController extends Controller
         ]);
     }
 }
+
+
+
+
+
 
 
 // app/Http/Controllers/OrderController.php

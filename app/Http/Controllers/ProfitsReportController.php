@@ -73,7 +73,24 @@ class ProfitsReportController extends Controller
     {
         $reports = ProfitsReport::where('report_date', '>=', Carbon::today()->subDays(7))
             ->orderBy('report_date', 'asc')
-            ->get(['report_date', 'total_revenue', 'total_profit']);
+            ->get(['report_date', 'total_revenue', 'total_profit', 'total_cost']);
+
+        return response()->json($reports);
+    }
+
+    public function getMonthlyReport()
+    {
+        $reports = ProfitsReport::where('report_date', '>=', Carbon::today()->subDays(30))
+            ->orderBy('report_date', 'asc')
+            ->get(['report_date', 'total_revenue', 'total_profit', 'total_cost']);
+
+        return response()->json($reports);
+    }
+
+    public function getAllReport()
+    {
+        $reports = ProfitsReport::orderBy('report_date', 'asc')
+            ->get(['report_date', 'total_revenue', 'total_profit', 'total_cost']);
 
         return response()->json($reports);
     }

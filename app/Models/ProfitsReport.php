@@ -5,10 +5,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
+
 
 class ProfitsReport extends Model
 {
     use HasFactory;
     protected $fillable = ['report_date', 'total_revenue', 'total_cost', 'total_profit'];
 }
+
+
 
