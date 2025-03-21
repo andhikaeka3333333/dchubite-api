@@ -13,65 +13,66 @@ use Illuminate\Support\Facades\DB;
 class OrderController extends Controller
 {
     public function createOrderWithPayment(Request $request)
-    {
-        return DB::transaction(function () use ($request) {
-
-            $order = Order::create([
-                'order_code' => 'ORD-' . time(),
-                'customer_name' => $request->customer_name,
-                'status' => 'pending',
-                'total_price' => 0,
-                'order_date' => Carbon::now(),
-            ]);
-
-            $totalPrice = 0;
-            foreach ($request->items as $item) {
-                $product = Product::find($item['product_id']);
-                if (!$product) {
-                    return response()->json(['message' => 'Product not found'], 404);
-                }
-
-                $subtotal = $product->price * $item['quantity'];
-                $totalPrice += $subtotal;
-
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $item['product_id'],
-                    'quantity' => $item['quantity'],
-                    'price' => $product->price,
-                    'subtotal' => $subtotal,
-                ]);
+{
+    return DB::transaction(function () use ($request) {
+        $totalPrice = 0;
+        foreach ($request->items as $item) {
+            $product = Product::find($item['product_id']);
+            if (!$product) {
+                return response()->json(['message' => 'Product not found'], 404);
             }
+            $totalPrice += $product->price * $item['quantity'];
+        }
 
+        if ($request->amount_paid < $totalPrice) {
+            return response()->json(['message' => 'Insufficient payment'], 400);
+        }
 
-            $order->update(['total_price' => $totalPrice]);
+        $order = Order::create([
+            'order_code' => 'ORD-' . time(),
+            'customer_name' => $request->customer_name,
+            'status' => 'pending',
+            'total_price' => 0,
+            'order_date' => Carbon::now(),
+        ]);
 
+        foreach ($request->items as $item) {
+            $product = Product::find($item['product_id']);
+            $subtotal = $product->price * $item['quantity'];
 
-            $change = $request->amount_paid - $totalPrice;
-            if ($change < 0) {
-                return response()->json(['message' => 'Insufficient payment'], 400);
-            }
-
-            Payment::create([
+            OrderItem::create([
                 'order_id' => $order->id,
-                'method' => $request->payment_method,
-                'amount_paid' => $request->amount_paid,
-                'payment_status' => 'completed',
-                'payment_date' => Carbon::now(),
+                'product_id' => $item['product_id'],
+                'quantity' => $item['quantity'],
+                'price' => $product->price,
+                'subtotal' => $subtotal,
             ]);
+        }
 
+        $order->update(['total_price' => $totalPrice]);
 
-            $order->update(['status' => 'pending']);
+        $change = $request->amount_paid - $totalPrice;
 
-            return response()->json([
-                'message' => 'Order created and payment successful',
-                'order' => $order,
-                'amount_paid' => $request->amount_paid,
-                'change' => $change,
-                'receipt' => $this->generateReceipt($order, $request->amount_paid, $change)
-            ]);
-        });
-    }
+        Payment::create([
+            'order_id' => $order->id,
+            'method' => $request->payment_method,
+            'amount_paid' => $request->amount_paid,
+            'payment_status' => 'completed',
+            'payment_date' => Carbon::now(),
+        ]);
+
+        $order->update(['status' => 'pending']);
+
+        return response()->json([
+            'message' => 'Order created and payment successful',
+            'order' => $order,
+            'amount_paid' => $request->amount_paid,
+            'change' => $change,
+            'receipt' => $this->generateReceipt($order, $request->amount_paid, $change)
+        ]);
+    });
+}
+
 
 
     public function markOrderAsSuccess($orderId)
