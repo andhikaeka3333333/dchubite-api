@@ -28,10 +28,10 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
 
 
     Route::prefix('orders')->group(function () {
-        Route::post('/', [OrderController::class, 'createOrder']); // Buat order baru
+        Route::post('/order', [OrderController::class, 'createOrderWithPayment']);
+        Route::put('/order/{orderId}/success', [OrderController::class, 'markOrderAsSuccess']);
         Route::get('/', [OrderController::class, 'getTransactions']);
         Route::get('/today', [OrderController::class, 'getTodayTransactions']);
-        Route::post('/{orderId}/payment', [OrderController::class, 'processPayment']); // Proses pembayaran
     });
 
     Route::get('/reports/daily', [ProfitsReportController::class, 'generateDailyReport']);

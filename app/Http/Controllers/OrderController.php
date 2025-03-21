@@ -12,9 +12,10 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
-    public function createOrder(Request $request)
+    public function createOrderWithPayment(Request $request)
     {
         return DB::transaction(function () use ($request) {
+
             $order = Order::create([
                 'order_code' => 'ORD-' . time(),
                 'customer_name' => $request->customer_name,
@@ -42,32 +43,15 @@ class OrderController extends Controller
                 ]);
             }
 
-            // Update total price dari hasil perhitungan otomatis
+
             $order->update(['total_price' => $totalPrice]);
 
-            return response()->json(['message' => 'Order created successfully', 'order' => $order]);
-        });
-    }
 
-    public function processPayment(Request $request, $orderId)
-    {
-        return DB::transaction(function () use ($request, $orderId) {
-            $order = Order::find($orderId);
-            if (!$order) {
-                return response()->json(['message' => 'Order not found'], 404);
-            }
-
-            if ($order->status !== 'pending') {
-                return response()->json(['message' => 'Order is already processed'], 400);
-            }
-
-            // Hitung kembalian jika ada
-            $change = $request->amount_paid - $order->total_price;
+            $change = $request->amount_paid - $totalPrice;
             if ($change < 0) {
                 return response()->json(['message' => 'Insufficient payment'], 400);
             }
 
-            // Simpan data pembayaran
             Payment::create([
                 'order_id' => $order->id,
                 'method' => $request->payment_method,
@@ -76,14 +60,11 @@ class OrderController extends Controller
                 'payment_date' => Carbon::now(),
             ]);
 
-            // Update status order menjadi completed
-            $order->update(['status' => 'completed']);
 
-            // Update laporan keuntungan harian
-            $this->updateDailyReport($order);
+            $order->update(['status' => 'pending']);
 
             return response()->json([
-                'message' => 'Payment successful',
+                'message' => 'Order created and payment successful',
                 'order' => $order,
                 'amount_paid' => $request->amount_paid,
                 'change' => $change,
@@ -91,6 +72,29 @@ class OrderController extends Controller
             ]);
         });
     }
+
+
+    public function markOrderAsSuccess($orderId)
+    {
+        return DB::transaction(function () use ($orderId) {
+            $order = Order::find($orderId);
+            if (!$order) {
+                return response()->json(['message' => 'Order not found'], 404);
+            }
+
+            if ($order->status !== 'pending') {
+                return response()->json(['message' => 'Order must be in pending state'], 400);
+            }
+
+
+            $order->update(['status' => 'completed']);
+
+            $this->updateDailyReport($order);
+
+            return response()->json(['message' => 'Order marked as success']);
+        });
+    }
+
 
     private function updateDailyReport(Order $order)
     {
@@ -132,10 +136,10 @@ class OrderController extends Controller
 
     public function getTodayTransactions()
     {
-        $today = Carbon::today(); // Mengambil tanggal hari ini
+        $today = Carbon::today();
 
         $orders = Order::whereDate('order_date', $today)
-            ->with(['orderItems.product']) // Memuat relasi dengan order_items dan product
+            ->with(['orderItems.product'])
             ->get();
 
         return response()->json([
