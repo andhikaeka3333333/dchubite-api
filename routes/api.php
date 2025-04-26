@@ -16,15 +16,28 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
 
     Route::apiResource('products', ProductController::class);
+    Route::put('/products/{id}/activate', [ProductController::class, 'activate']);
+
     Route::apiResource('categories', CategoryController::class);
 
 
-    Route::post('/orders', [OrderController::class, 'createOrder']);
-    Route::get('/orders', [OrderController::class, 'getTransactions']);
-    Route::patch('/orders/{id}', [OrderController::class, 'updateOrderStatus']);
-    Route::get('/orders/today', [OrderController::class, 'getTodayTransactions']);
+    // Route::post('/orders', [OrderController::class, 'createOrder']);
+    // Route::get('/orders', [OrderController::class, 'getTransactions']);
+    // Route::patch('/orders/{id}', [OrderController::class, 'updateOrderStatus']);
+    // Route::get('/orders/today', [OrderController::class, 'getTodayTransactions']);
+
+
+    Route::prefix('orders')->group(function () {
+        Route::post('/order', [OrderController::class, 'createOrderWithPayment']);
+        Route::put('/order/{orderId}/success', [OrderController::class, 'markOrderAsSuccess']);
+        Route::get('/', [OrderController::class, 'getTransactions']);
+        Route::get('/today', [OrderController::class, 'getTodayTransactions']);
+    });
+
     Route::get('/reports/daily', [ProfitsReportController::class, 'generateDailyReport']);
     Route::get('/reports/category', [ProfitsReportController::class, 'getCategoryReport']);
     Route::get('/reports/weekly', [ProfitsReportController::class, 'getWeeklyReport']);
+    Route::get('/reports/monthly', [ProfitsReportController::class, 'getMonthlyReport']);
+    Route::get('/reports/all', [ProfitsReportController::class, 'getAllReport']);
     Route::get('/reports', [ProfitsReportController::class, 'getReport']);
 });

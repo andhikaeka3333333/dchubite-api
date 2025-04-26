@@ -10,15 +10,47 @@ use Illuminate\Support\Facades\Validator;
 
 class ProductController extends Controller
 {
+    // public function index()
+    // {
+    //     $products = Product::all();
+    //     return response()->json([
+    //         'status' => true,
+    //         'message' => 'Products retrieved successfully',
+    //         'data' => ProductResource::collection($products)
+    //     ], 200);
+    // }
     public function index()
     {
-        $products = Product::all();
+        $products = Product::where('status', 'active')->get();
+
         return response()->json([
             'status' => true,
             'message' => 'Products retrieved successfully',
             'data' => ProductResource::collection($products)
         ], 200);
     }
+
+    public function activate($id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Product not found'
+            ], 404);
+        }
+
+        $product->update(['status' => 'active']);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Product activated successfully',
+            'data' => new ProductResource($product)
+        ], 200);
+    }
+
+
 
     public function store(Request $request)
     {
@@ -123,6 +155,29 @@ class ProductController extends Controller
         ], 200);
     }
 
+    // public function destroy($id)
+    // {
+    //     $product = Product::find($id);
+
+    //     if (!$product) {
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'Product not found'
+    //         ], 404);
+    //     }
+
+    //     if ($product->image) {
+    //         Storage::disk('public')->delete(str_replace(asset('storage/'), '', $product->image));
+    //     }
+
+    //     $product->delete();
+
+    //     return response()->json([
+    //         'status' => true,
+    //         'message' => 'Product deleted successfully'
+    //     ], 200);
+    // }
+
     public function destroy($id)
     {
         $product = Product::find($id);
@@ -134,15 +189,12 @@ class ProductController extends Controller
             ], 404);
         }
 
-        if ($product->image) {
-            Storage::disk('public')->delete(str_replace(asset('storage/'), '', $product->image));
-        }
-
-        $product->delete();
+        // Update status menjadi inactive
+        $product->update(['status' => 'inactive']);
 
         return response()->json([
             'status' => true,
-            'message' => 'Product deleted successfully'
+            'message' => 'Product deactivated successfully'
         ], 200);
     }
 }
