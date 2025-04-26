@@ -13,65 +13,65 @@ use Illuminate\Support\Facades\DB;
 class OrderController extends Controller
 {
     public function createOrderWithPayment(Request $request)
-{
-    return DB::transaction(function () use ($request) {
-        $totalPrice = 0;
-        foreach ($request->items as $item) {
-            $product = Product::find($item['product_id']);
-            if (!$product) {
-                return response()->json(['message' => 'Product not found'], 404);
+    {
+        return DB::transaction(function () use ($request) {
+            $totalPrice = 0;
+            foreach ($request->items as $item) {
+                $product = Product::find($item['product_id']);
+                if (!$product) {
+                    return response()->json(['message' => 'Product not found'], 404);
+                }
+                $totalPrice += $product->price * $item['quantity'];
             }
-            $totalPrice += $product->price * $item['quantity'];
-        }
 
-        if ($request->amount_paid < $totalPrice) {
-            return response()->json(['message' => 'Insufficient payment'], 400);
-        }
+            if ($request->amount_paid < $totalPrice) {
+                return response()->json(['message' => 'Insufficient payment'], 400);
+            }
 
-        $order = Order::create([
-            'order_code' => 'ORD-' . time(),
-            'customer_name' => $request->customer_name,
-            'status' => 'pending',
-            'total_price' => 0,
-            'order_date' => Carbon::now(),
-        ]);
-
-        foreach ($request->items as $item) {
-            $product = Product::find($item['product_id']);
-            $subtotal = $product->price * $item['quantity'];
-
-            OrderItem::create([
-                'order_id' => $order->id,
-                'product_id' => $item['product_id'],
-                'quantity' => $item['quantity'],
-                'price' => $product->price,
-                'subtotal' => $subtotal,
+            $order = Order::create([
+                'order_code' => 'ORD-' . time(),
+                'customer_name' => $request->customer_name,
+                'status' => 'pending',
+                'total_price' => 0,
+                'order_date' => Carbon::now(),
             ]);
-        }
 
-        $order->update(['total_price' => $totalPrice]);
+            foreach ($request->items as $item) {
+                $product = Product::find($item['product_id']);
+                $subtotal = $product->price * $item['quantity'];
 
-        $change = $request->amount_paid - $totalPrice;
+                OrderItem::create([
+                    'order_id' => $order->id,
+                    'product_id' => $item['product_id'],
+                    'quantity' => $item['quantity'],
+                    'price' => $product->price,
+                    'subtotal' => $subtotal,
+                ]);
+            }
 
-        Payment::create([
-            'order_id' => $order->id,
-            'method' => $request->payment_method,
-            'amount_paid' => $request->amount_paid,
-            'payment_status' => 'completed',
-            'payment_date' => Carbon::now(),
-        ]);
+            $order->update(['total_price' => $totalPrice]);
 
-        $order->update(['status' => 'pending']);
+            $change = $request->amount_paid - $totalPrice;
 
-        return response()->json([
-            'message' => 'Order created and payment successful',
-            'order' => $order,
-            'amount_paid' => $request->amount_paid,
-            'change' => $change,
-            'receipt' => $this->generateReceipt($order, $request->amount_paid, $change)
-        ]);
-    });
-}
+            Payment::create([
+                'order_id' => $order->id,
+                'method' => $request->payment_method,
+                'amount_paid' => $request->amount_paid,
+                'payment_status' => 'completed',
+                'payment_date' => Carbon::now(),
+            ]);
+
+            $order->update(['status' => 'pending']);
+
+            return response()->json([
+                'message' => 'Order created and payment successful',
+                'order' => $order,
+                'amount_paid' => $request->amount_paid,
+                'change' => $change,
+                'receipt' => $this->generateReceipt($order, $request->amount_paid, $change)
+            ]);
+        });
+    }
 
 
 
@@ -160,6 +160,59 @@ class OrderController extends Controller
         return response()->json([
             'message' => 'Transaksi',
             'data' => $orders
+        ]);
+    }
+
+    public function getSoldProductsToday()
+    {
+        $today = Carbon::today();
+
+        $orderItems = OrderItem::whereHas('order', function ($query) use ($today) {
+            $query->whereDate('order_date', $today)
+                ->where('status', 'completed');
+        })
+            ->with('product')
+            ->get();
+
+        $grouped = $orderItems->groupBy('product_id')->map(function ($items, $key) {
+            return [
+                'product_id' => $key,
+                'product_name' => $items->first()->product->name,
+                'total_quantity_sold' => $items->sum('quantity'),
+            ];
+        })->values();
+
+        return response()->json([
+            'date' => $today->toDateString(),
+            'sold_products' => $grouped,
+        ]);
+    }
+
+
+    public function getSoldProductsByCategoryToday()
+    {
+        $today = Carbon::today();
+
+        $orderItems = OrderItem::whereHas('order', function ($query) use ($today) {
+            $query->whereDate('order_date', $today)
+                ->where('status', 'completed');
+        })
+            ->with('product.category')
+            ->get();
+
+        $grouped = $orderItems->groupBy(function ($item) {
+            return $item->product->category_id;
+        })->map(function ($items, $categoryId) {
+            return [
+                'category_id' => $categoryId,
+                'category_name' => $items->first()->product->category->name ?? 'Tidak diketahui',
+                'total_quantity_sold' => $items->sum('quantity'),
+            ];
+        })->values();
+
+        return response()->json([
+            'date' => $today->toDateString(),
+            'sold_by_category' => $grouped,
         ]);
     }
 }

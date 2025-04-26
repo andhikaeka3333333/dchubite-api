@@ -40,4 +40,7 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::get('/reports/monthly', [ProfitsReportController::class, 'getMonthlyReport']);
     Route::get('/reports/all', [ProfitsReportController::class, 'getAllReport']);
     Route::get('/reports', [ProfitsReportController::class, 'getReport']);
+
+    Route::get('/reports/sold-products', [OrderController::class, 'getSoldProductsToday']);
+    Route::get('/reports/sold-by-category', [OrderController::class, 'getSoldProductsByCategoryToday']);
 });
