@@ -157,4 +157,58 @@ class ProfitsReportController extends Controller
             'data' => $filteredOrderItems->values(),
         ]);
     }
+
+
+    public function getCategoryReportbyDate(Request $request)
+    {
+        $categoryId = $request->query('category_id');
+        $date = $request->query('date', Carbon::today()->toDateString());
+
+        if (!$categoryId) {
+            return response()->json(['message' => 'category_id is required'], 400);
+        }
+
+        // Ambil nama kategori
+        $category = \App\Models\Category::find($categoryId);
+        if (!$category) {
+            return response()->json(['message' => 'Category not found'], 404);
+        }
+
+        // Ambil semua order yang sudah completed pada tanggal tertentu, beserta item dan produk
+        $orders = Order::whereDate('order_date', $date)
+            ->where('status', 'completed')
+            ->with(['orderItems.product' => function ($query) use ($categoryId) {
+                $query->where('category_id', $categoryId);
+            }])
+            ->get();
+
+        $filteredItems = collect();
+
+        // Ambil item yang sesuai kategori dari setiap order
+        foreach ($orders as $order) {
+            foreach ($order->orderItems as $item) {
+                if ($item->product && $item->product->category_id == $categoryId) {
+                    $filteredItems->push($item);
+                }
+            }
+        }
+
+        // Hitung total
+        $totalRevenue = $filteredItems->sum('subtotal');
+        $totalCost = $filteredItems->sum(function ($item) {
+            return $item->product->cost_price * $item->quantity;
+        });
+        $totalProfit = $totalRevenue - $totalCost;
+
+        return response()->json([
+            'message' => 'Laporan kategori berdasarkan tanggal',
+            'date' => $date,
+            'category_id' => $categoryId,
+            'category_name' => $category->name,
+            'total_revenue' => $totalRevenue,
+            'total_cost' => $totalCost,
+            'total_profit' => $totalProfit,
+            'data' => $filteredItems->values(),
+        ]);
+    }
 }

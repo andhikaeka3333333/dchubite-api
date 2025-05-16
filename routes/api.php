@@ -12,6 +12,9 @@ use Illuminate\Support\Facades\Route;
 Route::post('login', [AuthController::class, 'login']);
 Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
 
+Route::post('/forgot-password', [AuthController::class, 'requestOtp']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
 Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
 
@@ -36,6 +39,7 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
 
     Route::get('/reports/daily', [ProfitsReportController::class, 'generateDailyReport']);
     Route::get('/reports/category', [ProfitsReportController::class, 'getCategoryReport']);
+    Route::get('/reports/category-by-date', [ProfitsReportController::class, 'getCategoryReportbyDate']);
     Route::get('/reports/weekly', [ProfitsReportController::class, 'getWeeklyReport']);
     Route::get('/reports/monthly', [ProfitsReportController::class, 'getMonthlyReport']);
     Route::get('/reports/all', [ProfitsReportController::class, 'getAllReport']);
@@ -43,4 +47,5 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
 
     Route::get('/reports/sold-products', [OrderController::class, 'getSoldProductsToday']);
     Route::get('/reports/sold-by-category', [OrderController::class, 'getSoldProductsByCategoryToday']);
+    Route::get('/reports/sold-category-by-date', [OrderController::class, 'getSoldProductsByCategoryByDate']);
 });

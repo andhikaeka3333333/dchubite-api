@@ -215,7 +215,45 @@ class OrderController extends Controller
             'sold_by_category' => $grouped,
         ]);
     }
+
+    public function getSoldProductsByCategoryByDate(Request $request)
+    {
+        $date = $request->input('date', Carbon::today()->toDateString());
+
+        try {
+            $selectedDate = Carbon::parse($date)->startOfDay();
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Invalid date format'], 400);
+        }
+
+        $orderItems = OrderItem::whereHas('order', function ($query) use ($selectedDate) {
+            $query->whereDate('order_date', $selectedDate)
+                ->where('status', 'completed');
+        })
+            ->with('product.category')
+            ->get();
+
+        $grouped = $orderItems->groupBy(function ($item) {
+            return $item->product->category_id;
+        })->map(function ($items, $categoryId) {
+            return [
+                'category_id' => $categoryId,
+                'category_name' => $items->first()->product->category->name ?? 'Tidak diketahui',
+                'total_quantity_sold' => $items->sum('quantity'),
+            ];
+        })->values();
+
+        return response()->json([
+            'date' => $selectedDate->toDateString(),
+            'sold_by_category' => $grouped,
+        ]);
+    }
+
 }
+
+
+
+
 
 
 
