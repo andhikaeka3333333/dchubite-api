@@ -40,7 +40,7 @@ class ProfitsReportController extends Controller
     {
         $today = Carbon::today();
 
-        // Hanya menghitung order yang statusnya 'completed'
+        
         $orders = Order::whereDate('order_date', $today)
             ->where('status', 'completed')
             ->get();
@@ -54,7 +54,7 @@ class ProfitsReportController extends Controller
 
         $totalProfit = $totalRevenue - $totalCost;
 
-        // Update atau tambahkan nilai jika sudah ada data hari ini
+
         ProfitsReport::updateOrCreate(
             ['report_date' => $today],
             [
