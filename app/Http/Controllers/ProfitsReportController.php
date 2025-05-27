@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Barryvdh\DomPDF\PDF;
 use Illuminate\Http\Request;
 use App\Models\ProfitsReport;
 use App\Models\Order;
@@ -40,7 +41,7 @@ class ProfitsReportController extends Controller
     {
         $today = Carbon::today();
 
-        
+
         $orders = Order::whereDate('order_date', $today)
             ->where('status', 'completed')
             ->get();
@@ -210,5 +211,145 @@ class ProfitsReportController extends Controller
             'total_profit' => $totalProfit,
             'data' => $filteredItems->values(),
         ]);
+    }
+    public function downloadWeeklyReport()
+    {
+        $reports = \App\Models\ProfitsReport::where('report_date', '>=', \Carbon\Carbon::today()->subDays(7))
+            ->orderBy('report_date', 'asc')
+            ->get();
+
+        $totalRevenue = $reports->sum('total_revenue');
+        $totalCost = $reports->sum('total_cost');
+        $totalProfit = $reports->sum('total_profit');
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('reports.weekly', [
+            'reports' => $reports,
+            'totalRevenue' => $totalRevenue,
+            'totalCost' => $totalCost,
+            'totalProfit' => $totalProfit,
+        ]);
+
+        return $pdf->download('laporan_mingguan.pdf');
+    }
+    public function downloadCategoryReport(Request $request)
+    {
+        $categoryId = $request->query('category_id');
+        $date = $request->query('date', \Carbon\Carbon::today()->toDateString());
+
+        if (!$categoryId) {
+            return response()->json(['message' => 'category_id is required'], 400);
+        }
+
+        $categoryName = \App\Models\Category::where('id', $categoryId)->value('name');
+
+        $orders = \App\Models\Order::whereDate('order_date', $date)
+            ->where('status', 'completed')
+            ->with(['orderItems.product'])
+            ->get();
+
+        $filteredOrderItems = collect();
+        foreach ($orders as $order) {
+            foreach ($order->orderItems as $item) {
+                if ($item->product->category_id == $categoryId) {
+                    $filteredOrderItems->push($item);
+                }
+            }
+        }
+
+        // Group berdasarkan product_id dan hitung total quantity, revenue, cost per produk
+        $groupedItems = $filteredOrderItems->groupBy('product_id')->map(function ($items, $productId) {
+            $product = $items->first()->product;
+
+            $totalQuantity = $items->sum('quantity');
+            $totalRevenue = $items->sum('subtotal');
+
+            // Hitung totalCost dengan loop manual agar akses properti product aman
+            $totalCost = 0;
+            foreach ($items as $item) {
+                $totalCost += $item->product->cost_price * $item->quantity;
+            }
+
+            return (object)[
+                'product_id' => $productId,
+                'product_name' => $product->name,
+                'price' => $product->price,
+                'total_quantity' => $totalQuantity,
+                'total_revenue' => $totalRevenue,
+                'total_cost' => $totalCost,
+            ];
+        });
+
+        $totalRevenue = $groupedItems->sum('total_revenue');
+        $totalCost = $groupedItems->sum('total_cost');
+        $totalProfit = $totalRevenue - $totalCost;
+        $totalQuantity = $groupedItems->sum('total_quantity');
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('reports.category', [
+            'category_name' => $categoryName,
+            'date' => $date,
+            'items' => $groupedItems,
+            'totalRevenue' => $totalRevenue,
+            'totalCost' => $totalCost,
+            'totalProfit' => $totalProfit,
+            'totalQuantity' => $totalQuantity,
+        ]);
+
+        return $pdf->download('laporan_kategori_' . $categoryName . '.pdf');
+    }
+    public function downloadMonthlyProductReport(Request $request)
+    {
+        $startDate = \Carbon\Carbon::now()->startOfMonth()->toDateString();
+        $endDate = \Carbon\Carbon::now()->endOfMonth()->toDateString();
+
+        $orders = \App\Models\Order::whereBetween('order_date', [$startDate, $endDate])
+            ->where('status', 'completed')
+            ->with(['orderItems.product'])
+            ->get();
+
+        $filteredOrderItems = collect();
+        foreach ($orders as $order) {
+            foreach ($order->orderItems as $item) {
+                if ($item->product) {
+                    $filteredOrderItems->push($item);
+                }
+            }
+        }
+
+        $groupedItems = $filteredOrderItems->groupBy('product_id')->map(function ($items, $productId) {
+            $product = $items->first()->product;
+            $totalQuantity = $items->sum('quantity');
+            $totalRevenue = $items->sum('subtotal');
+
+            $totalCost = 0;
+            foreach ($items as $item) {
+                $totalCost += $item->product->cost_price * $item->quantity;
+            }
+
+            return (object)[
+                'product_id' => $productId,
+                'product_name' => $product->name,
+                'price' => $product->price,
+                'total_quantity' => $totalQuantity,
+                'total_revenue' => $totalRevenue,
+                'total_cost' => $totalCost,
+            ];
+        });
+
+        $totalRevenue = $groupedItems->sum('total_revenue');
+        $totalCost = $groupedItems->sum('total_cost');
+        $totalProfit = $totalRevenue - $totalCost;
+        $totalQuantity = $groupedItems->sum('total_quantity');
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('reports.monthly_product', [
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'items' => $groupedItems,
+            'totalRevenue' => $totalRevenue,
+            'totalCost' => $totalCost,
+            'totalProfit' => $totalProfit,
+            'totalQuantity' => $totalQuantity,
+        ]);
+
+        return $pdf->download('laporan_bulanan_produk.pdf');
     }
 }

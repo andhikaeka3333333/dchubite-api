@@ -48,4 +48,9 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::get('/reports/sold-products', [OrderController::class, 'getSoldProductsToday']);
     Route::get('/reports/sold-by-category', [OrderController::class, 'getSoldProductsByCategoryToday']);
     Route::get('/reports/sold-category-by-date', [OrderController::class, 'getSoldProductsByCategoryByDate']);
+
+    Route::get('/reports/weekly/pdf', [ProfitsReportController::class, 'downloadWeeklyReport']);
+    Route::get('/reports/category/pdf', [ProfitsReportController::class, 'downloadCategoryReport']);
+    Route::get('/reports/monthly/download', [ProfitsReportController::class, 'downloadMonthlyProductReport']);
+
 });
