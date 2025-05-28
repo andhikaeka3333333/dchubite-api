@@ -43,7 +43,7 @@ class ProductController extends Controller
 
         return response()->json([
             'status' => true,
-            'data' => $products,
+            'data' => ProductResource::collection($products),
         ]);
     }
 
