@@ -30,6 +30,25 @@ class ProductController extends Controller
         ], 200);
     }
 
+    public function getInactive()
+    {
+        $products = Product::where('status', 'inactive')->get();
+
+        if ($products->isEmpty()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'No inactive products found',
+            ]);
+        }
+
+        return response()->json([
+            'status' => true,
+            'data' => $products,
+        ]);
+    }
+
+
+
     public function activate($id)
     {
         $product = Product::find($id);
