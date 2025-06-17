@@ -249,6 +249,26 @@ class OrderController extends Controller
         ]);
     }
 
+    public function getCompletedOrdersHistory(Request $request)
+    {
+        $range = $request->input('range', 'all');
+
+        $query = Order::where('status', 'completed');
+
+        if ($range === '7') {
+            $query->where('order_date', '>=', Carbon::now()->subDays(7));
+        } elseif ($range === '30') {
+            $query->where('order_date', '>=', Carbon::now()->subDays(30));
+        }
+
+        $orders = $query->with(['orderItems.product'])->orderBy('order_date', 'desc')->get();
+
+        return response()->json([
+            'message' => 'History of completed orders',
+            'range' => $range,
+            'data' => $orders
+        ]);
+    }
 }
 
 

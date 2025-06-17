@@ -22,7 +22,7 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::apiResource('products', ProductController::class);
     Route::put('/products/{id}/activate', [ProductController::class, 'activate']);
     Route::apiResource('categories', CategoryController::class);
-    
+
 
     // Route::post('/orders', [OrderController::class, 'createOrder']);
     // Route::get('/orders', [OrderController::class, 'getTransactions']);
@@ -35,6 +35,8 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
         Route::put('/order/{orderId}/success', [OrderController::class, 'markOrderAsSuccess']);
         Route::get('/', [OrderController::class, 'getTransactions']);
         Route::get('/today', [OrderController::class, 'getTodayTransactions']);
+        Route::get('/completed-history', [OrderController::class, 'getCompletedOrdersHistory']);
+
     });
 
     Route::get('/reports/daily', [ProfitsReportController::class, 'generateDailyReport']);
